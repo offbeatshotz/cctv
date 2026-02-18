@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Camera View</title>
+    <style>
+        .video-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 10px;
+            padding: 10px;
+        }
+        .video-feed {
+            border: 1px solid black;
+            width: 100%;
+            height: 240px;
+            background-color: #eee;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #555;
+            flex-direction: column;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .controls {
+            margin-top: 10px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>Live Camera Feeds</h1>
+    <div class="video-container">
+        <div class="video-feed">
+            <video id="camera1" autoplay></video>
+            <button onclick="captureScreenshot('camera1')">Screenshot</button>
+            <div class="controls">
+                <button onclick="startRecording('camera1')">Start Recording</button>
+                <button onclick="stopRecording('camera1')" disabled>Stop Recording</button>
+                <span id="recordingStatus_camera1"></span>
+            </div>
+        </div>
+        <div class="video-feed">
+            <video id="camera2" autoplay></video>
+            <button onclick="captureScreenshot('camera2')">Screenshot</button>
+            <div class="controls">
+                <button onclick="startRecording('camera2')">Start Recording</button>
+                <button onclick="stopRecording('camera2')" disabled>Stop Recording</button>
+                <span id="recordingStatus_camera2"></span>
+            </div>
+        </div>
+        <div class="video-feed">
+            <video id="camera3" autoplay></video>
+            <button onclick="captureScreenshot('camera3')">Screenshot</button>
+            <div class="controls">
+                <button onclick="startRecording('camera3')">Start Recording</button>
+                <button onclick="stopRecording('camera3')" disabled>Stop Recording</button>
+                <span id="recordingStatus_camera3"></span>
+            </div>
+        </div>
+        <div class="video-feed">
+            <video id="camera4" autoplay></video>
+            <button onclick="captureScreenshot('camera4')">Screenshot</button>
+            <div class="controls">
+                <button onclick="startRecording('camera4')">Start Recording</button>
+                <button onclick="stopRecording('camera4')" disabled>Stop Recording</button>
+                <span id="recordingStatus_camera4"></span>
+            </div>
+        </div>
+    </div>
+    <p>WebRTC integration and actual camera stream display will be implemented here.</p>
+    <a href="/">Back to Home</a>
+
+    <canvas id="screenshotCanvas" style="display:none;"></canvas>
+
+    <script>
+        const recordings = {}; // Stores MediaRecorder instances
+        const recordedChunks = {}; // Stores recorded video chunks
+
+        function captureScreenshot(videoId) {
+            const video = document.getElementById(videoId);
+            const canvas = document.getElementById('screenshotCanvas');
+            const context = canvas.getContext('2d');
+
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const imageData = canvas.toDataURL('image/png'); // Base64 encoded image
+
+            fetch('/capture_screenshot', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ image: imageData, camera: videoId })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Screenshot captured:', data);
+                alert('Screenshot captured for ' + videoId + '!');
+            })
+            .catch(error => {
+                console.error('Error capturing screenshot:', error);
+                alert('Error capturing screenshot for ' + videoId + '. Check console for details.');
+            });
+        }
+
+        async function startRecording(videoId) {
+            const video = document.getElementById(videoId);
+            const statusSpan = document.getElementById(`recordingStatus_${videoId}`);
+            const startButton = video.nextElementSibling;
+            const stopButton = startButton.nextElementSibling;
+
+            if (!video.srcObject) {
+                alert('No video stream available for recording.');
+                return;
+            }
+
+            recordedChunks[videoId] = [];
+            recordings[videoId] = new MediaRecorder(video.srcObject, { mimeType: 'video/webm; codecs=vp8' });
+
+            recordings[videoId].ondataavailable = (event) => {
+                if (event.data.size > 0) {
+                    recordedChunks[videoId].push(event.data);
+                }
+            };
+
+            recordings[videoId].onstop = async () => {
+                const blob = new Blob(recordedChunks[videoId], { type: 'video/webm' });
+
+                const formData = new FormData();
+                formData.append('video', blob, `recording_${videoId}_${Date.now()}.webm`);
+                formData.append('camera', videoId);
+
+                try {
+                    const response = await fetch('/upload_recording', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    console.log('Recording upload result:', result);
+                    alert(`Recording from ${videoId} uploaded successfully!`);
+                } catch (error) {
+                    console.error('Error uploading recording:', error);
+                    alert(`Error uploading recording from ${videoId}.`);
+                }
+
+                recordedChunks[videoId] = [];
+            };
+
+            recordings[videoId].start();
+            statusSpan.textContent = 'Recording...';
+            startButton.disabled = true;
+            stopButton.disabled = false;
+            console.log(`Recording started for ${videoId}`);
+        }
+
+        function stopRecording(videoId) {
+            const statusSpan = document.getElementById(`recordingStatus_${videoId}`);
+            const startButton = document.getElementById(videoId).nextElementSibling;
+            const stopButton = startButton.nextElementSibling;
+
+            if (recordings[videoId] && recordings[videoId].state !== 'inactive') {
+                recordings[videoId].stop();
+                statusSpan.textContent = 'Processing recording...';
+                startButton.disabled = false;
+                stopButton.disabled = true;
+                console.log(`Recording stopped for ${videoId}`);
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            const videoElements = document.querySelectorAll('video');
+            videoElements.forEach(video => {
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    navigator.mediaDevices.getUserMedia({ video: true })
+                        .then(stream => {
+                            video.srcObject = stream;
+                            const parentDiv = video.parentElement;
+                            const controlsDiv = parentDiv.querySelector('.controls');
+                            if (controlsDiv) {
+                                const startButton = controlsDiv.querySelector('button:first-child');
+                                if (startButton) startButton.disabled = false;
+                            }
+                        })
+                        .catch(err => console.error("Error accessing camera: ", err));
+                } else {
+                    console.log("Webcam not available or mediaDevices not supported. Using placeholder.");
+                }
+            });
+        });
+
+    </script>
+</body>
+</html>

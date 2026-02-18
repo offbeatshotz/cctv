@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generated QR Code</title>
+</head>
+<body>
+    <h1>Generated QR Code</h1>
+    {% if qr_code_img %}
+    <img src="data:image/png;base64,{{ qr_code_img }}" alt="QR Code">
+    {% else %}
+    <p>No QR code generated.</p>
+    {% endif %}
+    <br>
+    <a href="/">Go back</a>
+</body>
+</html>

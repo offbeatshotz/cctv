@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CCTV Web App</title>
+</head>
+<body>
+    <h1>Welcome to the CCTV Web App!</h1>
+    <p>Enter data to generate a QR code:</p>
+    <form action="/generate_qr_page" method="GET">
+        <input type="text" name="data" placeholder="Enter data for QR code">
+        <button type="submit">Generate QR Code</button>
+    </form>
+    <div id="qrCodeContainer"></div>
+    <p><a href="/camera_view">View Cameras</a></p>
+</body>
+</html>
